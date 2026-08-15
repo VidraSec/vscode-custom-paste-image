@@ -76,8 +76,22 @@ npm run package    # builds a local .vsix
 Pushing a `vX.Y.Z` tag (matching `package.json`'s `version`) runs
 `.github/workflows/release.yml`, which attaches a `.vsix` to a GitHub Release.
 
-To also publish to the VS Code Marketplace: create a publisher at
-[marketplace.visualstudio.com/manage](https://marketplace.visualstudio.com/manage),
-generate a PAT with `Marketplace: Manage` scope, add it as the `VSCE_PAT`
-repository secret, and uncomment the publish step in `release.yml` — or run
-`npx vsce publish -p <token>` locally.
+To also publish to the VS Code Marketplace, `release.yml` authenticates via
+Microsoft Entra ID (global Azure DevOps PATs are retired December 2026), not
+a token secret:
+
+1. Create a publisher at
+   [marketplace.visualstudio.com/manage](https://marketplace.visualstudio.com/manage).
+2. Create a user-assigned Managed Identity in the Azure Portal, with a
+   federated credential for GitHub Actions (entity type **Environment**,
+   environment name `marketplace-publish`, matching this repo).
+3. Add the identity's Client ID and Tenant ID as the `AZURE_CLIENT_ID` and
+   `AZURE_TENANT_ID` repository secrets, and create a GitHub Actions
+   environment named `marketplace-publish`.
+4. Register the identity with Azure DevOps once (`az rest -u
+   https://app.vssps.visualstudio.com/_apis/profile/profiles/me --resource
+   499b84ac-1321-427f-aa17-267ca6975798`) and copy the returned `id`.
+5. Add that id as a **Contributor** member on the publisher.
+
+Locally, `npx vsce publish --azure-credential` picks up an `az login` session
+the same way.

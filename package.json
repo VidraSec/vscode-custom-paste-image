@@ -3,7 +3,8 @@
   "displayName": "Custom Paste Image",
   "description": "Paste a clipboard image straight into a markdown file, with configurable target folder and link style. Reads real image files (not just bitmaps), keeps PNG transparency, and works on Windows, Remote-WSL, and Linux.",
   "version": "0.1.0",
-  "publisher": "vidrasec",
+  "publisher": "VidraSec",
+  "icon": "icon.png",
   "license": "MIT",
   "repository": {
     "type": "git",
