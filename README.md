@@ -81,17 +81,24 @@ of `vscode` imports, and is covered by `src/test`.
 ## Publishing
 
 ```sh
-npm run package    # builds a local .vsix
+npm run package    # builds a local .vsix, without publishing anything
 ```
 
-Pushing a `vX.Y.Z` tag (matching `package.json`'s `version`) runs
+To ship a release, once your changes are committed and pushed to `main`:
+
+```sh
+npm version patch   # or minor / major
+```
+
+This runs `typecheck` + `test` (`preversion`), bumps `package.json`, commits
+and tags `vX.Y.Z`, then pushes both (`postversion`). The pushed tag runs
 `.github/workflows/release.yml`: it packages the `.vsix`, publishes to the
 Marketplace, and only then creates the GitHub Release — so a rejected publish
 leaves nothing to clean up before you retry.
 
-To also publish to the VS Code Marketplace, `release.yml` authenticates via
-Microsoft Entra ID (global Azure DevOps PATs are retired December 2026), not
-a token secret:
+`release.yml` authenticates to the Marketplace via Microsoft Entra ID (global
+Azure DevOps PATs are retired December 2026), not a token secret. This is a
+one-time setup, already done for this repo — kept here for reference/recovery:
 
 1. Create a publisher at
    [marketplace.visualstudio.com/manage](https://marketplace.visualstudio.com/manage).
