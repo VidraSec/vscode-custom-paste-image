@@ -1,5 +1,6 @@
 import * as path from "node:path";
 import * as vscode from "vscode";
+import { isInside, relativeLink, workspaceAbsoluteLink } from "./format";
 
 /**
  * Where to save a pasted image and how to link it, driven entirely by
@@ -48,22 +49,11 @@ export function resolvePasteTarget(documentUri: vscode.Uri): PasteTarget | { err
 
   if (linkStyle === "workspaceAbsolute") {
     const workspaceRoot = vscode.workspace.getWorkspaceFolder(documentUri)?.uri.fsPath;
-    if (workspaceRoot && !path.relative(workspaceRoot, dir).startsWith("..")) {
+    if (workspaceRoot && isInside(workspaceRoot, dir)) {
       return { dir, toLink: (file) => workspaceAbsoluteLink(workspaceRoot, file) };
     }
     // Falls back to a relative link when the target isn't under a workspace
     // folder, since a workspace-root link would otherwise be meaningless.
   }
   return { dir, toLink: (file) => relativeLink(fileDir, file) };
-}
-
-function relativeLink(fromDir: string, file: string): string {
-  const relative = path.relative(fromDir, file).split(path.sep).join("/");
-  const withPrefix = relative.startsWith(".") ? relative : `./${relative}`;
-  return encodeURI(withPrefix);
-}
-
-function workspaceAbsoluteLink(workspaceRoot: string, file: string): string {
-  const relative = path.relative(workspaceRoot, file).split(path.sep).join("/");
-  return `/${encodeURI(relative)}`;
 }

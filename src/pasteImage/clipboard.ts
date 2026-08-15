@@ -2,11 +2,18 @@ import { execFile } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { promisify } from "node:util";
+import { IMAGE_EXTENSIONS } from "./naming";
 
 const execFileAsync = promisify(execFile);
 
 /** Screenshots are tiny; the cap only stops a stray huge file from eating memory. */
 const MAX_IMAGE_BYTES = 64 * 1024 * 1024;
+/**
+ * The Windows reader hands the bytes back base64 encoded inside JSON, so the
+ * pipe has to allow for the ~4/3 inflation or the cap would really bite at
+ * 48 MB — and as an `ENOBUFS` kill rather than a message anyone can act on.
+ */
+const MAX_WINDOWS_STDOUT_BYTES = Math.ceil(MAX_IMAGE_BYTES * (4 / 3)) + 4096;
 const CLIPBOARD_TIMEOUT_MS = 20_000;
 
 export interface ClipboardImage {
@@ -17,18 +24,6 @@ export interface ClipboardImage {
   /** Base name the clipboard carried, when it held a file rather than a bitmap. */
   name?: string;
 }
-
-/** Extensions we accept when the clipboard holds a file instead of a bitmap. */
-export const IMAGE_EXTENSIONS = [
-  ".png",
-  ".jpg",
-  ".jpeg",
-  ".gif",
-  ".bmp",
-  ".webp",
-  ".avif",
-  ".svg",
-];
 
 const MIME_EXTENSIONS: ReadonlyArray<readonly [string, string]> = [
   ["image/png", ".png"],
@@ -71,7 +66,7 @@ export async function readClipboardImage(): Promise<ClipboardImage | undefined> 
  * Tool additionally offer a real PNG next to the DIB; preferring it keeps
  * transparency, which `Clipboard.GetImage()` would flatten to black.
  */
-const WINDOWS_CLIPBOARD_SCRIPT = String.raw`
+export const WINDOWS_CLIPBOARD_SCRIPT = String.raw`
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
 
@@ -81,6 +76,12 @@ function Send-Result([hashtable]$Payload) {
 }
 
 function Send-Image([byte[]]$Bytes, [string]$Extension, [string]$Name) {
+  if ($Bytes.Length -gt __MAX_BYTES__) {
+    Send-Result @{
+      kind = 'error'
+      message = "The image is $([Math]::Round($Bytes.Length / 1MB)) MB, over the __MAX_MB__ MB limit."
+    }
+  }
   Send-Result @{
     kind = 'image'
     extension = $Extension
@@ -93,7 +94,11 @@ function Send-FileIfImage([string]$Path) {
   if ([string]::IsNullOrWhiteSpace($Path)) { return }
   if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return }
   $extension = [IO.Path]::GetExtension($Path).ToLowerInvariant()
-  if (@(EXTENSIONS) -notcontains $extension) { return }
+  if (@(__EXTENSIONS__) -notcontains $extension) { return }
+  # Checked before reading, so an oversized file is never pulled into memory.
+  if ((Get-Item -LiteralPath $Path).Length -gt __MAX_BYTES__) {
+    Send-Result @{ kind = 'error'; message = "$Path is over the __MAX_MB__ MB limit." }
+  }
   Send-Image ([IO.File]::ReadAllBytes($Path)) $extension ([IO.Path]::GetFileNameWithoutExtension($Path))
 }
 
@@ -138,7 +143,11 @@ try {
 } catch {
   Send-Result @{ kind = 'error'; message = $_.Exception.Message }
 }
-`.replace("EXTENSIONS", IMAGE_EXTENSIONS.map((extension) => `'${extension}'`).join(","));
+`
+  // Function replacements, so a `$` in a value is never read as a match pattern.
+  .replace(/__EXTENSIONS__/g, () => IMAGE_EXTENSIONS.map((ext) => `'${ext}'`).join(","))
+  .replace(/__MAX_BYTES__/g, () => String(MAX_IMAGE_BYTES))
+  .replace(/__MAX_MB__/g, () => String(Math.round(MAX_IMAGE_BYTES / 1024 / 1024)));
 
 interface WindowsClipboardResult {
   kind: "image" | "none" | "error";
@@ -163,7 +172,7 @@ async function readWindowsClipboard(): Promise<ClipboardImage | undefined> {
         // clipboard access requires.
         cwd: await powershellWorkingDirectory(),
         timeout: CLIPBOARD_TIMEOUT_MS,
-        maxBuffer: MAX_IMAGE_BYTES,
+        maxBuffer: MAX_WINDOWS_STDOUT_BYTES,
         windowsHide: true,
       },
     ));
@@ -237,6 +246,17 @@ async function readLinuxClipboard(): Promise<ClipboardImage | undefined> {
   if (uriTarget) {
     const file = firstImagePath((await tool.read(uriTarget)).toString("utf8"));
     if (file) {
+      // The clipboard outlives the file it points at; say so rather than
+      // letting a bare ENOENT out, or claiming the clipboard was empty.
+      if (!(await exists(file))) {
+        throw new Error(`The copied file no longer exists: ${file}`);
+      }
+      const { size } = await fs.stat(file);
+      if (size > MAX_IMAGE_BYTES) {
+        throw new Error(
+          `${file} is over the ${Math.round(MAX_IMAGE_BYTES / 1024 / 1024)} MB limit.`,
+        );
+      }
       return {
         data: await fs.readFile(file),
         extension: path.extname(file).toLowerCase(),
@@ -282,7 +302,7 @@ async function pickLinuxTool(): Promise<LinuxClipboardTool> {
 }
 
 /** Picks the first `file://` URI pointing at an image; ignores the leading `copy` line GNOME adds. */
-function firstImagePath(payload: string): string | undefined {
+export function firstImagePath(payload: string): string | undefined {
   for (const line of splitLines(payload)) {
     if (!line.startsWith("file://")) {
       continue;

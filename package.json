@@ -25,12 +25,24 @@
   ],
   "main": "./dist/extension.js",
   "activationEvents": [],
+  "capabilities": {
+    "virtualWorkspaces": {
+      "supported": false,
+      "description": "Images are written with the file system API and linked by path, so the document has to live on disk."
+    },
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "restrictedConfigurations": [
+        "customPasteImage.folder"
+      ],
+      "description": "customPasteImage.folder can point outside the workspace, so its workspace value is ignored until you trust the folder."
+    }
+  },
   "contributes": {
     "commands": [
       {
         "command": "customPasteImage.paste",
-        "title": "Paste Image",
-        "category": "Paste Image"
+        "title": "Paste Image"
       }
     ],
     "keybindings": [
@@ -87,7 +99,9 @@
     "build": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
     "typecheck": "tsc --noEmit",
-    "preversion": "npm run typecheck",
+    "pretest": "tsc",
+    "test": "cd out && node --test",
+    "preversion": "npm run typecheck && npm test",
     "postversion": "git push --follow-tags",
     "vscode:prepublish": "npm run typecheck && node esbuild.mjs --production",
     "package": "vsce package --no-dependencies",

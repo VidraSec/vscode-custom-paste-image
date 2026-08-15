@@ -53,6 +53,10 @@ selection the cursor lands inside the empty `![]`.
 | `customPasteImage.confirmFileName` | `true` | Ask for the file name before saving. |
 | `customPasteImage.format` | `markdown` | `markdown` for `![]()`, `html` for `<img>` with a `width` placeholder. |
 
+Because `folder` can point outside the workspace, its *workspace* value is
+ignored in an untrusted folder; your user setting still applies. Trust the
+folder to let the repository's own value take effect.
+
 ## Requirements
 
 On Linux (not WSL), install `wl-clipboard` (Wayland) or `xclip` (X11) to read
@@ -62,10 +66,17 @@ the clipboard.
 
 ```sh
 npm install
-npm run watch    # rebuild on change
+npm run watch      # rebuild on change
+npm test           # unit tests for the pure helpers
+npm run typecheck
 ```
 
 Press <kbd>F5</kbd> to launch an Extension Development Host with the extension loaded.
+
+The clipboard readers need a real clipboard, so they are exercised by hand.
+Everything that does not — file naming, link encoding, alt-text escaping, URI
+list parsing — lives in `naming.ts`, `format.ts` and `firstImagePath`, is free
+of `vscode` imports, and is covered by `src/test`.
 
 ## Publishing
 
@@ -74,7 +85,9 @@ npm run package    # builds a local .vsix
 ```
 
 Pushing a `vX.Y.Z` tag (matching `package.json`'s `version`) runs
-`.github/workflows/release.yml`, which attaches a `.vsix` to a GitHub Release.
+`.github/workflows/release.yml`: it packages the `.vsix`, publishes to the
+Marketplace, and only then creates the GitHub Release — so a rejected publish
+leaves nothing to clean up before you retry.
 
 To also publish to the VS Code Marketplace, `release.yml` authenticates via
 Microsoft Entra ID (global Azure DevOps PATs are retired December 2026), not

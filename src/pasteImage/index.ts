@@ -1,7 +1,19 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as vscode from "vscode";
-import { readClipboardImage, type ClipboardImage } from "./clipboard";
+import { readClipboardImage } from "./clipboard";
+import {
+  collapseWhitespace,
+  escapeHtmlAttribute,
+  escapeMarkdownAltText,
+} from "./format";
+import {
+  checkFileName,
+  freePath,
+  normalizeFileName,
+  suggestFileName,
+  type NameProblem,
+} from "./naming";
 import { resolvePasteTarget } from "./target";
 
 /**
@@ -42,7 +54,7 @@ export async function pasteImage(log: vscode.LogOutputChannel): Promise<void> {
   }
 
   const config = vscode.workspace.getConfiguration("customPasteImage", editor.document.uri);
-  const altText = editor.document.getText(editor.selection).trim();
+  const altText = collapseWhitespace(editor.document.getText(editor.selection));
   const suggestion = suggestFileName(image, altText);
 
   let file: string;
@@ -78,112 +90,62 @@ export async function pasteImage(log: vscode.LogOutputChannel): Promise<void> {
 /* File name                                                                   */
 /* -------------------------------------------------------------------------- */
 
-function suggestFileName(image: ClipboardImage, altText: string): string {
-  const stem = slug(image.name ?? "") || slug(altText) || timestamp();
-  return stem + image.extension;
-}
-
 /**
  * Asks for the name with the extension already appended but only the stem
  * selected, so typing replaces the name and keeps the format.
  */
 async function askForFileName(suggestion: string, targetDir: string): Promise<string | undefined> {
-  const stemLength = suggestion.length - path.extname(suggestion).length;
+  const extension = path.extname(suggestion);
+  const stemLength = suggestion.length - extension.length;
 
   const answer = await vscode.window.showInputBox({
     title: "Paste Image",
     prompt: `Saved into ${targetDir}`,
     value: suggestion,
     valueSelection: [0, stemLength],
-    validateInput: (value) => validateFileName(value, targetDir),
+    validateInput: (value) => validateFileName(value, targetDir, extension),
   });
 
-  return answer === undefined ? undefined : normalizeFileName(answer.trim(), path.extname(suggestion));
+  return answer === undefined ? undefined : normalizeFileName(answer, extension);
 }
 
 async function validateFileName(
   value: string,
   targetDir: string,
+  fallbackExtension: string,
 ): Promise<vscode.InputBoxValidationMessage | undefined> {
-  const name = value.trim();
-  if (!name) {
-    return { message: "Enter a file name.", severity: vscode.InputBoxValidationSeverity.Error };
+  const problem = checkFileName(value);
+  if (problem?.severity === "error") {
+    return toValidationMessage(problem);
   }
-  const normalized = name.replace(/\\/g, "/");
-  if (path.isAbsolute(normalized) || normalized.split("/").includes("..")) {
-    return {
-      message: "Must stay inside the folder.",
-      severity: vscode.InputBoxValidationSeverity.Error,
-    };
-  }
-  // Reject what Windows refuses, minus `/` which we allow for subfolders.
-  if (/[<>:"|?*\u0000-\u001f]/.test(normalized)) {
-    return {
-      message: 'A file name must not contain < > : " | ? * or control characters.',
-      severity: vscode.InputBoxValidationSeverity.Error,
-    };
-  }
-  if (/\s/.test(normalized)) {
-    return {
-      message: "Spaces get escaped as %20 in the link; hyphens read better.",
-      severity: vscode.InputBoxValidationSeverity.Warning,
-    };
-  }
-  try {
-    await fs.access(path.join(targetDir, normalized));
-    return {
+  // Checked against the name that will actually be written, extension and all,
+  // and reported ahead of any style warning — losing a file matters more.
+  if (await exists(path.join(targetDir, normalizeFileName(value, fallbackExtension)))) {
+    return toValidationMessage({
+      severity: "warning",
       message: "A file with this name exists and will be overwritten.",
-      severity: vscode.InputBoxValidationSeverity.Warning,
-    };
+    });
+  }
+  return problem && toValidationMessage(problem);
+}
+
+async function exists(target: string): Promise<boolean> {
+  try {
+    await fs.access(target);
+    return true;
   } catch {
-    return undefined;
+    return false;
   }
 }
 
-/** Appends `-2`, `-3`, ... rather than silently overwriting when nobody is asked. */
-async function freePath(target: string): Promise<string> {
-  const extension = path.extname(target);
-  const stem = target.slice(0, target.length - extension.length);
-  for (let attempt = 1; ; attempt++) {
-    const candidate = attempt === 1 ? target : `${stem}-${attempt}${extension}`;
-    try {
-      await fs.access(candidate);
-    } catch {
-      return candidate;
-    }
-  }
-}
-
-function normalizeFileName(name: string, fallbackExtension: string): string {
-  const normalized = name.replace(/\\/g, "/");
-  return path.extname(normalized) ? normalized : normalized + fallbackExtension;
-}
-
-function slug(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/ä/g, "ae")
-    .replace(/ö/g, "oe")
-    .replace(/ü/g, "ue")
-    .replace(/ß/g, "ss")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60);
-}
-
-function timestamp(): string {
-  const now = new Date();
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return [
-    now.getFullYear(),
-    pad(now.getMonth() + 1),
-    pad(now.getDate()),
-    pad(now.getHours()),
-    pad(now.getMinutes()),
-    pad(now.getSeconds()),
-  ].join("-");
+function toValidationMessage(problem: NameProblem): vscode.InputBoxValidationMessage {
+  return {
+    message: problem.message,
+    severity:
+      problem.severity === "error"
+        ? vscode.InputBoxValidationSeverity.Error
+        : vscode.InputBoxValidationSeverity.Warning,
+  };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -194,16 +156,14 @@ function buildSnippet(format: SnippetFormat, link: string, altText: string): vsc
   const snippet = new vscode.SnippetString();
 
   if (format === "html") {
-    snippet.appendText('<img src="');
-    snippet.appendText(link);
-    snippet.appendText('" alt="');
-    appendAlt(snippet, altText);
+    snippet.appendText(`<img src="${link}" alt="`);
+    appendAlt(snippet, escapeHtmlAttribute(altText));
     snippet.appendText('" width="');
     snippet.appendPlaceholder("50%");
     snippet.appendText('">');
   } else {
     snippet.appendText("![");
-    appendAlt(snippet, altText);
+    appendAlt(snippet, escapeMarkdownAltText(altText));
     snippet.appendText(`](${link})`);
   }
 
