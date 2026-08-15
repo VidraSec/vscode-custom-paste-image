@@ -1,0 +1,102 @@
+{
+  "name": "custom-paste-image",
+  "displayName": "Custom Paste Image",
+  "description": "Paste a clipboard image straight into a markdown file, with configurable target folder and link style. Reads real image files (not just bitmaps), keeps PNG transparency, and works on Windows, Remote-WSL, and Linux.",
+  "version": "0.1.0",
+  "publisher": "vidrasec",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/VidraSec/custom-paste-image.git"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "paste",
+    "image",
+    "clipboard",
+    "markdown",
+    "screenshot"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "commands": [
+      {
+        "command": "customPasteImage.paste",
+        "title": "Paste Image",
+        "category": "Paste Image"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "customPasteImage.paste",
+        "key": "ctrl+alt+v",
+        "mac": "cmd+alt+v",
+        "when": "editorTextFocus && !editorReadonly && editorLangId == markdown"
+      }
+    ],
+    "configuration": {
+      "title": "Paste Image",
+      "properties": {
+        "customPasteImage.folder": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Where to save the image. Empty saves next to the edited file. A path starting with `/` is relative to the workspace folder root (e.g. `/assets/img`). Anything else is relative to the edited file's directory (e.g. `images` or `../assets`)."
+        },
+        "customPasteImage.linkStyle": {
+          "type": "string",
+          "enum": [
+            "relative",
+            "workspaceAbsolute"
+          ],
+          "enumDescriptions": [
+            "Link relative to the edited file, e.g. ./images/name.png",
+            "Link relative to the workspace root with a leading /, e.g. /assets/img/name.png — useful for static sites that serve a folder at the site root. Falls back to relative when the image isn't saved inside the workspace."
+          ],
+          "default": "relative",
+          "description": "How the inserted link is written."
+        },
+        "customPasteImage.confirmFileName": {
+          "type": "boolean",
+          "default": true,
+          "description": "Ask for the file name before saving. The suggested name comes from the copied file, the selected text, or the current time."
+        },
+        "customPasteImage.format": {
+          "type": "string",
+          "enum": [
+            "markdown",
+            "html"
+          ],
+          "enumDescriptions": [
+            "![alt](name.png)",
+            "<img src=\"name.png\" alt=\"alt\" width=\"50%\"> — lets you set a size"
+          ],
+          "default": "markdown",
+          "description": "What to insert into the document."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "preversion": "npm run typecheck",
+    "postversion": "git push --follow-tags",
+    "vscode:prepublish": "npm run typecheck && node esbuild.mjs --production",
+    "package": "vsce package --no-dependencies",
+    "publish": "vsce publish --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^3.2.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.6.0"
+  }
+}
