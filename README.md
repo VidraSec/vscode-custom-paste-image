@@ -78,40 +78,4 @@ Everything that does not — file naming, link encoding, alt-text escaping, URI
 list parsing — lives in `naming.ts`, `format.ts` and `firstImagePath`, is free
 of `vscode` imports, and is covered by `src/test`.
 
-## Publishing
-
-```sh
-npm run package    # builds a local .vsix, without publishing anything
-```
-
-To ship a release, once your changes are committed and pushed to `main`:
-
-```sh
-npm version patch   # or minor / major
-```
-
-This runs `typecheck` + `test` (`preversion`), bumps `package.json`, commits
-and tags `vX.Y.Z`, then pushes both (`postversion`). The pushed tag runs
-`.github/workflows/release.yml`: it packages the `.vsix`, publishes to the
-Marketplace, and only then creates the GitHub Release — so a rejected publish
-leaves nothing to clean up before you retry.
-
-`release.yml` authenticates to the Marketplace via Microsoft Entra ID (global
-Azure DevOps PATs are retired December 2026), not a token secret. This is a
-one-time setup, already done for this repo — kept here for reference/recovery:
-
-1. Create a publisher at
-   [marketplace.visualstudio.com/manage](https://marketplace.visualstudio.com/manage).
-2. Create a user-assigned Managed Identity in the Azure Portal, with a
-   federated credential for GitHub Actions (entity type **Environment**,
-   environment name `marketplace-publish`, matching this repo).
-3. Add the identity's Client ID and Tenant ID as the `AZURE_CLIENT_ID` and
-   `AZURE_TENANT_ID` repository secrets, and create a GitHub Actions
-   environment named `marketplace-publish`.
-4. Register the identity with Azure DevOps once (`az rest -u
-   https://app.vssps.visualstudio.com/_apis/profile/profiles/me --resource
-   499b84ac-1321-427f-aa17-267ca6975798`) and copy the returned `id`.
-5. Add that id as a **Contributor** member on the publisher.
-
-Locally, `npx vsce publish --azure-credential` picks up an `az login` session
-the same way.
+See [PUBLISHING.md](PUBLISHING.md) for cutting a release.
