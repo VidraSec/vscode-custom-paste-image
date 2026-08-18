@@ -8,7 +8,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/VidraSec/custom-paste-image.git"
+    "url": "https://github.com/VidraSec/vscode-custom-paste-image.git"
   },
   "engines": {
     "vscode": "^1.90.0"
