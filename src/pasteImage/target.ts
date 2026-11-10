@@ -1,6 +1,6 @@
 import * as path from "node:path";
 import * as vscode from "vscode";
-import { isInside, relativeLink, workspaceAbsoluteLink } from "./format";
+import { isInside, relativeLink, rootedLink } from "./format";
 
 /**
  * Where to save a pasted image and how to link it, driven entirely by
@@ -19,7 +19,7 @@ export interface PasteTarget {
 
 /**
  * Resolves the save directory and link style for `documentUri` from the
- * `customPasteImage.folder` / `customPasteImage.linkStyle` settings.
+ * `customPasteImage.folder` / `linkStyle` / `linkRoot` settings.
  *
  * `folder`:
  *  - empty (default) — save next to the edited file.
@@ -30,6 +30,7 @@ export function resolvePasteTarget(documentUri: vscode.Uri): PasteTarget | { err
   const config = vscode.workspace.getConfiguration("customPasteImage", documentUri);
   const folderSetting = config.get<string>("folder", "").trim();
   const linkStyle = config.get<LinkStyle>("linkStyle", "relative");
+  const linkRootSetting = config.get<string>("linkRoot", "").trim();
   const fileDir = path.dirname(documentUri.fsPath);
 
   let dir: string;
@@ -49,11 +50,15 @@ export function resolvePasteTarget(documentUri: vscode.Uri): PasteTarget | { err
 
   if (linkStyle === "workspaceAbsolute") {
     const workspaceRoot = vscode.workspace.getWorkspaceFolder(documentUri)?.uri.fsPath;
-    if (workspaceRoot && isInside(workspaceRoot, dir)) {
-      return { dir, toLink: (file) => workspaceAbsoluteLink(workspaceRoot, file) };
+    if (workspaceRoot) {
+      // `linkRoot` is always workspace-relative; a leading slash is optional.
+      const linkRoot = path.join(workspaceRoot, linkRootSetting.replace(/^[/\\]+/, ""));
+      if (isInside(linkRoot, dir)) {
+        return { dir, toLink: (file) => rootedLink(linkRoot, file) };
+      }
     }
-    // Falls back to a relative link when the target isn't under a workspace
-    // folder, since a workspace-root link would otherwise be meaningless.
+    // Falls back to a relative link when the target isn't under the link
+    // root, since a root-relative link would otherwise point nowhere.
   }
   return { dir, toLink: (file) => relativeLink(fileDir, file) };
 }

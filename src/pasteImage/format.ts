@@ -41,9 +41,12 @@ export function isInside(root: string, target: string): boolean {
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }
 
-/** Link from the workspace root to `file`, with a leading `/`. */
-export function workspaceAbsoluteLink(workspaceRoot: string, file: string): string {
-  return `/${encodeLinkPath(toPosix(path.relative(workspaceRoot, file)))}`;
+/**
+ * Link from `root` to `file`, with a leading `/`. `root` is the folder the
+ * site serves as `/` — the workspace root, or e.g. Hugo's `static/`.
+ */
+export function rootedLink(root: string, file: string): string {
+  return `/${encodeLinkPath(toPosix(path.relative(root, file)))}`;
 }
 
 /**

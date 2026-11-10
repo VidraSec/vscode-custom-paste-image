@@ -50,8 +50,26 @@ selection the cursor lands inside the empty `![]`.
 | --- | --- | --- |
 | `customPasteImage.folder` | `""` | Where to save. Empty saves next to the file. `/assets/img` is relative to the workspace root. `images` or `../assets` is relative to the file's directory. |
 | `customPasteImage.linkStyle` | `relative` | `relative` links from the file to the image; `workspaceAbsolute` links from the workspace root with a leading `/` (falls back to relative if the image isn't inside the workspace). |
+| `customPasteImage.linkRoot` | `""` | With `workspaceAbsolute`, the workspace folder that `/` stands for. Empty is the workspace root; `/static` makes `static/shot.png` link as `/shot.png`. |
 | `customPasteImage.confirmFileName` | `true` | Ask for the file name before saving. |
 | `customPasteImage.format` | `markdown` | `markdown` for `![]()`, `html` for `<img>` with a `width` placeholder. |
+
+### Hugo
+
+Hugo serves `static/` at the site root, so an image saved as
+`static/shot.png` is linked as `/shot.png`. In the site's
+`.vscode/settings.json`:
+
+```json
+{
+  "customPasteImage.folder": "/static",
+  "customPasteImage.linkStyle": "workspaceAbsolute",
+  "customPasteImage.linkRoot": "/static"
+}
+```
+
+Both paths are relative to the workspace root. If the Hugo site is a
+subfolder of the workspace, include it, e.g. `/site/static` for both.
 
 Because `folder` can point outside the workspace, its *workspace* value is
 ignored in an untrusted folder; your user setting still applies. Trust the

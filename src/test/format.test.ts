@@ -7,7 +7,7 @@ import {
   escapeMarkdownAltText,
   isInside,
   relativeLink,
-  workspaceAbsoluteLink,
+  rootedLink,
 } from "../pasteImage/format";
 
 test("encodeLinkPath escapes what would end a markdown destination early", () => {
@@ -40,9 +40,15 @@ test("relativeLink always carries a ./ or ../ prefix", () => {
   assert.equal(relativeLink("/w/docs", "/w/assets/a.png"), "../assets/a.png");
 });
 
-test("workspaceAbsoluteLink is rooted at the workspace", () => {
-  assert.equal(workspaceAbsoluteLink("/w", "/w/assets/img/a.png"), "/assets/img/a.png");
-  assert.equal(workspaceAbsoluteLink("/w", "/w/a (1).png"), "/a%20%281%29.png");
+test("rootedLink is rooted at the given folder", () => {
+  assert.equal(rootedLink("/w", "/w/assets/img/a.png"), "/assets/img/a.png");
+  assert.equal(rootedLink("/w", "/w/a (1).png"), "/a%20%281%29.png");
+});
+
+test("rootedLink drops the served folder itself from the link", () => {
+  // Hugo serves static/ at the site root: static/shot.png is linked as /shot.png.
+  assert.equal(rootedLink("/w/static", "/w/static/shot.png"), "/shot.png");
+  assert.equal(rootedLink("/w/static", "/w/static/img/shot.png"), "/img/shot.png");
 });
 
 test("isInside accepts the root itself and anything under it", () => {

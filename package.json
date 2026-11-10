@@ -59,7 +59,7 @@
         "customPasteImage.folder": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Where to save the image. Empty saves next to the edited file. A path starting with `/` is relative to the workspace folder root (e.g. `/assets/img`). Anything else is relative to the edited file's directory (e.g. `images` or `../assets`)."
+          "markdownDescription": "Where to save the image. Empty saves next to the edited file. A path starting with `/` is relative to the workspace folder root (e.g. `/assets/img`). Anything else is relative to the edited file's directory (e.g. `images` or `../assets`).\n\n**Hugo:** set this to `/static`, `#customPasteImage.linkStyle#` to `workspaceAbsolute` and `#customPasteImage.linkRoot#` to `/static` to get links like `/shot.png`. If the site is in a subfolder of the workspace, include it in both paths, e.g. `/site/static`."
         },
         "customPasteImage.linkStyle": {
           "type": "string",
@@ -69,10 +69,15 @@
           ],
           "enumDescriptions": [
             "Link relative to the edited file, e.g. ./images/name.png",
-            "Link relative to the workspace root with a leading /, e.g. /assets/img/name.png — useful for static sites that serve a folder at the site root. Falls back to relative when the image isn't saved inside the workspace."
+            "Link with a leading /, e.g. /assets/img/name.png, rooted at the workspace or at customPasteImage.linkRoot. For static sites: with Hugo, set linkRoot to /static so static/name.png is linked as /name.png. Falls back to relative when the image isn't saved inside that root."
           ],
           "default": "relative",
           "description": "How the inserted link is written."
+        },
+        "customPasteImage.linkRoot": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "With `#customPasteImage.linkStyle#` set to `workspaceAbsolute`: the workspace folder that `/` in a link stands for. Empty means the workspace root. For Hugo, set `/static` together with `#customPasteImage.folder#` `/static`, so `static/shot.png` is linked as `/shot.png` (`/site/static` for both if the site is in a subfolder). Images saved outside this folder get a relative link."
         },
         "customPasteImage.confirmFileName": {
           "type": "boolean",

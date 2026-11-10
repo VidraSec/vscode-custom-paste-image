@@ -6,6 +6,13 @@ All notable changes to this extension are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `customPasteImage.linkRoot` picks the folder a `workspaceAbsolute` link is
+  rooted at. Static site generators that serve a subfolder as `/` can now be
+  linked correctly: with Hugo, `static/shot.png` becomes `/shot.png` instead
+  of `/static/shot.png`.
+
 ### Fixed
 
 - Links are now escaped for characters `encodeURI` leaves alone. A file called
