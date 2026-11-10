@@ -6,6 +6,8 @@ All notable changes to this extension are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-10
+
 ### Added
 
 - `customPasteImage.linkRoot` picks the folder a `workspaceAbsolute` link is
